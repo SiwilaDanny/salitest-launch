@@ -1,82 +1,88 @@
 "use client";
 
 const plans = [
-  { id: "starter", name: "Starter", price: 29, testers: 12, features: ["12 verified testers", "14-day testing", "Basic fraud protection", "Email support"] },
-  { id: "pro", name: "Pro", price: 79, testers: 30, features: ["30 verified testers", "14-day testing", "Advanced fraud prevention", "Priority matching", "Real-time analytics", "Priority support"] },
-  { id: "enterprise", name: "Enterprise", price: null, testers: null, features: ["Unlimited testers", "Custom duration", "Dedicated fraud review", "Account manager", "API access"] },
+  { id: "starter", name: "Starter (Basic)", price: "15% fee", features: ["No upfront subscription", "15% platform fee on funding", "Min. $1.50 reward / tester", "Closed testing tools"] },
+  { id: "pro", name: "Pro", price: 79, features: ["30 verified testers", "14-day testing", "Advanced fraud prevention", "Priority matching", "Real-time analytics", "Priority support"] },
+  { id: "enterprise", name: "Enterprise", price: null, features: ["Unlimited testers", "Custom duration", "Dedicated fraud review", "Account manager", "API access"] },
 ];
 
 const history = [
-  { id: "inv1", desc: "Starter Campaign — FitTrack Pro", date: "2026-05-01", amount: 29, status: "paid" },
-  { id: "inv2", desc: "Pro Campaign — BudgetBuddy", date: "2026-04-15", amount: 79, status: "paid" },
-  { id: "inv3", desc: "Starter Campaign — MealPrep AI", date: "2026-04-01", amount: 29, status: "paid" },
+  { id: "inv1", desc: "Starter — FitTrack Pro (15% Fee)", date: "2026-05-01", amount: 5.40, status: "paid" },
+  { id: "inv2", desc: "Pro — BudgetBuddy", date: "2026-04-15", amount: 79.00, status: "paid" },
+  { id: "inv3", desc: "Starter — MealPrep AI (15% Fee)", date: "2026-04-01", amount: 5.40, status: "paid" },
 ];
 
 export default function BillingPage() {
   return (
-    <div className="animate-fade-in">
-      <div style={{ marginBottom: "var(--space-xl)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>Billing & Plans</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)" }}>Manage your subscription and payment history</p>
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-xl font-bold">Billing & Plans</h2>
+        <p className="text-sm text-base-content/40">Manage your subscription and payment history</p>
       </div>
 
       {/* Current Plan */}
-      <div className="glass-card" style={{ padding: "var(--space-xl)", marginBottom: "var(--space-2xl)", border: "1px solid rgba(108,92,231,0.3)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-md)" }}>
-        <div>
-          <span className="badge badge-primary" style={{ marginBottom: "var(--space-sm)" }}>Current Plan</span>
-          <h3 style={{ fontSize: "var(--text-2xl)", fontWeight: 800 }}>Starter</h3>
-          <p style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)", marginTop: 4 }}>$29 per campaign · 12 verified testers</p>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)", marginBottom: "var(--space-sm)" }}>Next billing: —</div>
-          <button className="btn btn-secondary">Manage Payment Method</button>
-        </div>
-      </div>
-
-      {/* Plan Selection */}
-      <h3 style={{ fontWeight: 700, marginBottom: "var(--space-lg)" }}>Available Plans</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "var(--space-lg)", marginBottom: "var(--space-2xl)" }}>
-        {plans.map((plan) => (
-          <div key={plan.id} className="glass-card" style={{ padding: "var(--space-xl)", border: plan.id === "starter" ? "1px solid rgba(108,92,231,0.4)" : undefined }}>
-            {plan.id === "starter" && <div className="badge badge-primary" style={{ marginBottom: "var(--space-sm)" }}>Current</div>}
-            <h3 style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>{plan.name}</h3>
-            <div style={{ margin: "var(--space-md) 0", fontSize: "var(--text-3xl)", fontWeight: 800 }}>
-              {plan.price ? `$${plan.price}` : "Custom"}
-              {plan.price && <span style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", fontWeight: 400 }}> /campaign</span>}
-            </div>
-            <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-sm)", marginBottom: "var(--space-xl)" }}>
-              {plan.features.map((f) => (
-                <li key={f} style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)", display: "flex", gap: 8 }}>
-                  <span style={{ color: "var(--brand-success)" }}>✓</span> {f}
-                </li>
-              ))}
-            </ul>
-            <button className={`btn ${plan.id === "starter" ? "btn-ghost" : "btn-primary"}`} style={{ width: "100%" }} disabled={plan.id === "starter"}>
-              {plan.id === "starter" ? "Current Plan" : plan.id === "enterprise" ? "Contact Sales" : "Upgrade"}
-            </button>
+      <div className="card bg-base-200 border border-primary/20">
+        <div className="card-body flex-row flex-wrap justify-between items-center gap-4">
+          <div>
+            <span className="badge badge-primary badge-sm mb-1">Current Plan</span>
+            <h3 className="text-2xl font-extrabold">Starter (Basic)</h3>
+            <p className="text-sm text-base-content/40 mt-0.5">Pay-as-you-go · 15% platform fee on campaign budget</p>
           </div>
-        ))}
+          <div className="text-right">
+            <p className="text-sm text-base-content/30 mb-2">Next billing: —</p>
+            <button className="btn btn-outline btn-sm">Manage Payment Method</button>
+          </div>
+        </div>
       </div>
 
-      {/* Invoice History */}
-      <h3 style={{ fontWeight: 700, marginBottom: "var(--space-lg)" }}>Payment History</h3>
-      <div className="table-wrapper">
-        <table className="table">
-          <thead>
-            <tr><th>Description</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody>
-            {history.map((inv) => (
-              <tr key={inv.id}>
-                <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>{inv.desc}</td>
-                <td>{inv.date}</td>
-                <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>${inv.amount}</td>
-                <td><span className="badge badge-success">Paid</span></td>
-                <td><button className="btn btn-ghost btn-sm" style={{ color: "var(--text-accent)" }}>Download</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Plans */}
+      <div>
+        <h3 className="font-bold mb-4">Available Plans</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {plans.map((plan) => (
+            <div key={plan.id} className={`card bg-base-200 border ${plan.id === "starter" ? "border-primary/30" : "border-base-content/5"}`}>
+              <div className="card-body gap-3">
+                {plan.id === "starter" && <span className="badge badge-primary badge-sm w-fit">Current</span>}
+                <h3 className="font-bold text-lg">{plan.name}</h3>
+                <div className="text-3xl font-extrabold">
+                  {plan.id === "starter" ? "15% fee" : plan.price ? `$${plan.price}` : "Custom"}
+                  {plan.price && plan.id !== "starter" && <span className="text-sm font-normal text-base-content/30 ml-1">/campaign</span>}
+                </div>
+                <ul className="space-y-1.5 my-2">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex gap-2 text-sm text-base-content/50">
+                      <span className="text-success text-xs mt-0.5">✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+                <button className={`btn btn-block btn-sm ${plan.id === "starter" ? "btn-disabled" : "btn-primary"}`} disabled={plan.id === "starter"}>
+                  {plan.id === "starter" ? "Current Plan" : plan.id === "enterprise" ? "Contact Sales" : "Upgrade"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Payment History */}
+      <div>
+        <h3 className="font-bold mb-4">Payment History</h3>
+        <div className="overflow-x-auto rounded-lg border border-base-content/5">
+          <table className="table table-sm">
+            <thead><tr className="bg-base-200"><th>Description</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {history.map((inv) => (
+                <tr key={inv.id} className="hover">
+                  <td className="font-medium">{inv.desc}</td>
+                  <td className="text-base-content/40">{inv.date}</td>
+                  <td className="font-mono font-semibold">${inv.amount}</td>
+                  <td><span className="badge badge-success badge-sm">Paid</span></td>
+                  <td><button className="link link-primary text-sm">Download</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

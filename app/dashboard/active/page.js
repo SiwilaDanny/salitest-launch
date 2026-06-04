@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import exifr from "exifr";
 import { resolveDeviceName } from "@/lib/fraud/models";
 import { createClient } from "@/lib/supabase/client";
+import { AppMark, platformLabel } from "@/app/dashboard/_components/AppMark";
 
 async function computeSHA256(file) {
   const buffer = await file.arrayBuffer();
@@ -20,33 +21,26 @@ function getImageDimensions(file) {
       resolve({ width: img.width, height: img.height });
       URL.revokeObjectURL(img.src);
     };
-    img.onerror = () => {
-      resolve({ width: null, height: null });
-    };
+    img.onerror = () => resolve({ width: null, height: null });
   });
 }
 
 function getBrowserDeviceInfo() {
   if (typeof window === "undefined") return null;
   const ua = navigator.userAgent;
-  
-  // OS Detection
   let os = "Unknown OS";
   if (ua.indexOf("Windows NT 10.0") !== -1) os = "Windows 10/11";
-  else if (ua.indexOf("Windows NT 6.2") !== -1) os = "Windows 8";
   else if (ua.indexOf("Macintosh") !== -1) os = "macOS";
   else if (ua.indexOf("Android") !== -1) os = "Android";
   else if (ua.indexOf("iPhone") !== -1 || ua.indexOf("iPad") !== -1) os = "iOS";
   else if (ua.indexOf("Linux") !== -1) os = "Linux";
 
-  // Browser Detection
   let browser = "Generic Browser";
   if (ua.indexOf("Chrome") !== -1 && ua.indexOf("Chromium") === -1) browser = "Chrome";
   else if (ua.indexOf("Safari") !== -1 && ua.indexOf("Chrome") === -1) browser = "Safari";
   else if (ua.indexOf("Firefox") !== -1) browser = "Firefox";
   else if (ua.indexOf("Edg") !== -1) browser = "Edge";
 
-  // GPU Detection via WebGL
   let gpu = "Generic Graphics";
   try {
     const canvas = document.createElement("canvas");
@@ -55,33 +49,28 @@ function getBrowserDeviceInfo() {
       const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
       if (debugInfo) {
         const rawGpu = gl.getParameter(debugInfo.UNMASKED_RENDERER_RENDERER_ID) || "";
-        // Clean up common wrapper strings
         gpu = rawGpu.replace(/ANGLE \((.+?)\)/, "$1").trim();
       }
     }
-  } catch (e) {
-    console.error("WebGL GPU check failed", e);
-  }
+  } catch (e) { /* noop */ }
 
   return {
-    os,
-    browser,
-    gpu,
-    cores: navigator.hardwareConcurrency || "Unknown Cores",
-    memory: navigator.deviceMemory ? `${navigator.deviceMemory} GB RAM` : "Unknown Memory",
-    screenSize: `${window.screen.width}x${window.screen.height} (${window.devicePixelRatio}x scale)`,
+    os, browser, gpu,
+    cores: navigator.hardwareConcurrency || "Unknown",
+    memory: navigator.deviceMemory ? `${navigator.deviceMemory} GB` : "Unknown",
+    screenSize: `${window.screen.width}×${window.screen.height} @${window.devicePixelRatio}x`,
   };
 }
 
 const activeCampaigns = [
   {
-    id: "e1", app: "FitTrack Pro", icon: "🏃", platform: "android",
+    id: "e1", app: "FitTrack Pro", platform: "android",
     day: 11, reward: 3, status: "active",
     checkIns: [true,true,true,true,true,true,true,true,true,true,true,false,false,false],
     testingLink: "https://play.google.com/apps/testing/com.fittrack.pro",
   },
   {
-    id: "e2", app: "RideShare Lite", icon: "🚗", platform: "both",
+    id: "e2", app: "RideShare Lite", platform: "both",
     day: 7, reward: 6, status: "active",
     checkIns: [true,true,true,true,true,true,true,false,false,false,false,false,false,false],
     testingLink: "https://testflight.apple.com/join/abc123",
@@ -97,7 +86,6 @@ export default function ActiveTestsPage() {
   const [bugs, setBugs] = useState("");
   const [suggestions, setSuggestions] = useState("");
   const [success, setSuccess] = useState(false);
-
   const [testerId, setTesterId] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [verificationResult, setVerificationResult] = useState(null);
@@ -107,12 +95,8 @@ export default function ActiveTestsPage() {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setTesterId(user.id);
-        }
-      } catch (err) {
-        console.error("Failed to load session:", err);
-      }
+        if (user) setTesterId(user.id);
+      } catch (err) { console.error("Failed to load session:", err); }
     }
     loadSession();
   }, []);
@@ -129,51 +113,29 @@ export default function ActiveTestsPage() {
     setModalOpen(true);
   };
 
-  // Real EXIF & Hash & Browser Telemetry Extraction
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     setScreenshot(file);
     setLoading(true);
-
     try {
-      // 1. Calculate real SHA-256 hash of the file
       const fileHash = await computeSHA256(file);
-
-      // 2. Get image dimensions
       const { width, height } = await getImageDimensions(file);
-
-      // 3. Try to parse real EXIF data using exifr
       let exifData = null;
       try {
-        exifData = await exifr.parse(file, {
-          tiff: true,
-          xmp: true,
-          gps: true,
-          exif: true,
-        });
-      } catch (exifErr) {
-        console.warn("Failed to parse EXIF:", exifErr);
-      }
-
-      // 4. Capture current browser device information telemetry
+        exifData = await exifr.parse(file, { tiff: true, xmp: true, gps: true, exif: true });
+      } catch (exifErr) { console.warn("Failed to parse EXIF:", exifErr); }
       const browserDev = getBrowserDeviceInfo();
-
       setMetaInfo({
         name: file.name,
         size: `${(file.size / 1024).toFixed(1)} KB`,
-        hash: fileHash.substring(0, 32) + "...",
+        hash: fileHash.substring(0, 32) + "…",
         width: width || "Unknown",
         height: height || "Unknown",
         make: exifData?.Make || "N/A (Screenshot)",
-        model: exifData?.Model ? resolveDeviceName(exifData.Model) : "No EXIF hardware data (Laptop/Generic Screenshot)",
+        model: exifData?.Model ? resolveDeviceName(exifData.Model) : "No EXIF hardware data",
         software: exifData?.Software || "None detected",
-        takenAt: exifData?.DateTimeOriginal
-          ? new Date(exifData.DateTimeOriginal).toLocaleString()
-          : "No creation time metadata",
-        
-        // Browser telemetry addition
+        takenAt: exifData?.DateTimeOriginal ? new Date(exifData.DateTimeOriginal).toLocaleString() : "No metadata",
         browserOS: browserDev?.os,
         browserName: browserDev?.browser,
         browserGPU: browserDev?.gpu,
@@ -182,21 +144,9 @@ export default function ActiveTestsPage() {
         browserScreen: browserDev?.screenSize,
       });
     } catch (err) {
-      console.error("Error verifying image file:", err);
-      setMetaInfo({
-        name: file.name,
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        hash: "Calculation error",
-        width: "Unknown",
-        height: "Unknown",
-        make: "Generic",
-        model: "Failed to parse file",
-        software: "Unknown",
-        takenAt: "Unknown",
-      });
-    } finally {
-      setLoading(false);
-    }
+      console.error("Error verifying image:", err);
+      setMetaInfo({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB`, hash: "Error", width: "?", height: "?", make: "Generic", model: "Parse failed", software: "Unknown", takenAt: "Unknown" });
+    } finally { setLoading(false); }
   };
 
   const handleSubmit = async (e) => {
@@ -204,19 +154,8 @@ export default function ActiveTestsPage() {
     setLoading(true);
     setErrorMessage("");
     setVerificationResult(null);
-
-    if (!testerId) {
-      setErrorMessage("Authentication session required. Please sign in as a tester.");
-      setLoading(false);
-      return;
-    }
-
-    if (!screenshot) {
-      setErrorMessage("Please upload a verification screenshot.");
-      setLoading(false);
-      return;
-    }
-
+    if (!testerId) { setErrorMessage("Please sign in as a tester."); setLoading(false); return; }
+    if (!screenshot) { setErrorMessage("Please upload a screenshot."); setLoading(false); return; }
     try {
       const formData = new FormData();
       formData.append("tester_id", testerId);
@@ -226,240 +165,202 @@ export default function ActiveTestsPage() {
       formData.append("bugs_found", bugs);
       formData.append("suggestions", suggestions);
       formData.append("screenshot", screenshot);
-
-      const response = await fetch("/api/feedback/submit", {
-        method: "POST",
-        body: formData,
-      });
-
+      const response = await fetch("/api/feedback/submit", { method: "POST", body: formData });
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to submit feedback proof.");
-      }
-
+      if (!response.ok) throw new Error(result.error || "Failed to submit.");
       setVerificationResult(result);
       setSuccess(true);
-
-      // Reset form states
-      setBugs("");
-      setSuggestions("");
-      setScreenshot(null);
-
-      // Hold modal open slightly longer if flagged so they see the warning
-      setTimeout(() => {
-        setModalOpen(false);
-      }, result.isFlagged ? 5000 : 2000);
-
+      setBugs(""); setSuggestions(""); setScreenshot(null);
+      setTimeout(() => setModalOpen(false), result.isFlagged ? 5000 : 2000);
     } catch (err) {
       console.error("Submission failed:", err);
-      setErrorMessage(err.message || "An unexpected error occurred during submission.");
-    } finally {
-      setLoading(false);
-    }
+      setErrorMessage(err.message || "An unexpected error occurred.");
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="animate-fade-in">
-      <div style={{ marginBottom: "var(--space-xl)" }}>
-        <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>Active Testing Sessions</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)" }}>
-          {activeCampaigns.length} active campaigns — upload screenshots daily to verify your testing progress!
-        </p>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold">Active Testing Sessions</h2>
+        <p className="text-sm text-base-content/40">{activeCampaigns.length} active campaigns — upload screenshots daily to verify progress</p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xl)" }}>
+      <div className="space-y-5">
         {activeCampaigns.map((c) => {
           const daysLeft = 14 - c.day;
           const progress = Math.round((c.day / 14) * 100);
-
           return (
-            <div key={c.id} className="glass-card" style={{ padding: "var(--space-xl)" }}>
-              {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "var(--radius-md)", background: "var(--bg-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--text-2xl)" }}>
-                  {c.icon}
+            <div key={c.id} className="card bg-base-200 border border-base-content/5">
+              <div className="card-body gap-5">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <AppMark name={c.app} />
+                    <div>
+                      <h3 className="font-bold text-lg">{c.app}</h3>
+                      <p className="text-xs text-base-content/30">{platformLabel(c.platform)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-black text-success">${c.reward}</div>
+                    <div className="text-[10px] text-base-content/30">pending reward</div>
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>{c.app}</h3>
-                  <p style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)" }}>
-                    {c.platform === "android" ? "🤖 Android" : c.platform === "ios" ? "🍎 iOS" : "📱 Both"}
-                  </p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "var(--text-2xl)", fontWeight: 800, color: "var(--brand-success)" }}>${c.reward}</div>
-                  <div style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>pending reward</div>
-                </div>
-              </div>
 
-              {/* Progress */}
-              <div style={{ marginBottom: "var(--space-lg)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-sm)" }}>
-                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>Day {c.day} of 14</span>
-                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)" }}>{daysLeft} days left</span>
+                {/* Progress */}
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-base-content/50">Day {c.day} of 14</span>
+                    <span className="text-base-content/30">{daysLeft} days left</span>
+                  </div>
+                  <progress className="progress progress-primary w-full h-2" value={progress} max="100" />
                 </div>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${progress}%` }} />
-                </div>
-              </div>
 
-              {/* 14-day calendar grid */}
-              <div style={{ marginBottom: "var(--space-xl)" }}>
-                <p style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "var(--space-sm)" }}>
-                  Check-In Calendar
-                </p>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {c.checkIns.map((checked, i) => {
-                    const isToday = i === c.day - 1;
-                    const isFuture = i >= c.day;
-                    return (
-                      <div key={i} style={{
-                        flex: 1, height: 32, borderRadius: "var(--radius-sm)",
-                        background: checked ? "var(--brand-success)" : isToday && !checked ? "var(--brand-warning)" : isFuture ? "var(--bg-input)" : "rgba(255,118,117,0.3)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "var(--text-xs)", fontWeight: 600, color: isFuture ? "var(--text-muted)" : "white",
-                        position: "relative",
-                      }}>
-                        {checked ? "✓" : isToday && !checked ? "!" : isFuture ? "" : "✗"}
-                        {isToday && (
-                          <span style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", fontSize: 8, color: "var(--brand-warning)" }}>▼</span>
-                        )}
-                      </div>
-                    );
-                  })}
+                {/* Check-in calendar */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-base-content/30 font-semibold mb-1.5">Check-In Calendar</p>
+                  <div className="flex gap-1">
+                    {c.checkIns.map((checked, i) => {
+                      const isToday = i === c.day - 1;
+                      const isFuture = i >= c.day;
+                      return (
+                        <div key={i} className={`flex-1 h-7 rounded text-[10px] font-bold flex items-center justify-center relative ${
+                          checked ? "bg-success text-success-content" :
+                          isToday && !checked ? "bg-warning text-warning-content" :
+                          isFuture ? "bg-base-300 text-base-content/20" :
+                          "bg-error/30 text-error"
+                        }`}>
+                          {checked ? "✓" : isToday && !checked ? "!" : isFuture ? "" : "✗"}
+                          {isToday && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[8px] text-warning">▼</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div style={{ display: "flex", gap: "var(--space-md)" }}>
-                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => handleOpenModal(c)}>
-                  📸 Verify Screenshot & Submit Feedback
-                </button>
-                <a href={c.testingLink} target="_blank" rel="noreferrer" className="btn btn-secondary">
-                  🔗 Open App
-                </a>
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <button className="btn btn-primary flex-1" onClick={() => handleOpenModal(c)}>
+                    📸 Verify Screenshot & Submit
+                  </button>
+                  <a href={c.testingLink} target="_blank" rel="noreferrer" className="btn btn-outline">
+                    🔗 Open App
+                  </a>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* ═══════ SUBMIT SCREENSHOT MODAL ═══════ */}
+      {/* ═══════ MODAL ═══════ */}
       {modalOpen && (
-        <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: 640 }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Submit Proof for {selectedApp?.app}</h2>
-              <button className="btn btn-icon btn-ghost" onClick={() => setModalOpen(false)}>✕</button>
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-xl bg-base-200">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="font-bold text-lg">Submit Proof for {selectedApp?.app}</h3>
+              <button className="btn btn-sm btn-circle btn-ghost" onClick={() => setModalOpen(false)}>✕</button>
             </div>
 
             {success ? (
-              <div style={{ textAlign: "center", padding: "var(--space-2xl)" }}>
+              <div className="text-center py-8">
                 {verificationResult?.isFlagged ? (
                   <>
-                    <div style={{ fontSize: "var(--text-4xl)", color: "var(--brand-warning)", marginBottom: "var(--space-md)" }}>⚠️</div>
-                    <h3 style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--brand-warning)" }}>Proof Submitted with Warnings</h3>
-                    <p style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)", marginTop: 8, lineHeight: 1.6 }}>
-                      Feedback uploaded, but screenshot flagged by our fraud scoring engine! Common causes: shared image, temporal anomalies, or hardware mismatch. This submission is flagged for auditor review.
+                    <div className="text-5xl mb-3">⚠️</div>
+                    <h3 className="text-lg font-bold text-warning">Submitted with Warnings</h3>
+                    <p className="text-sm text-base-content/40 mt-2 max-w-sm mx-auto leading-relaxed">
+                      Screenshot flagged by fraud engine. Common causes: shared image, temporal anomalies, or hardware mismatch. Flagged for auditor review.
                     </p>
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: "var(--text-4xl)", color: "var(--brand-success)", marginBottom: "var(--space-md)" }}>✓</div>
-                    <h3 style={{ fontSize: "var(--text-lg)", fontWeight: 700 }}>Proof Submitted!</h3>
-                    <p style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)", marginTop: 4 }}>
-                      Screenshot metadata parsed and verified. Your trust index is in good standing.
-                    </p>
+                    <div className="text-5xl text-success mb-3">✓</div>
+                    <h3 className="text-lg font-bold">Proof Submitted!</h3>
+                    <p className="text-sm text-base-content/40 mt-1">Metadata verified. Your trust index is in good standing.</p>
                   </>
                 )}
               </div>
             ) : (
-              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {errorMessage && (
-                  <div style={{ background: "rgba(255,118,117,0.1)", border: "1px solid rgba(255,118,117,0.3)", borderRadius: "var(--radius-md)", padding: "var(--space-md)", color: "#FF7675", fontSize: "var(--text-sm)" }}>
-                    ⚠️ {errorMessage}
+                  <div className="alert alert-error alert-sm text-sm">
+                    <span>⚠️ {errorMessage}</span>
                   </div>
                 )}
-                {/* Drag and Drop Screenshot */}
-                <div className="form-group">
-                  <label className="form-label">Upload Proof Screenshot</label>
-                  <div style={{
-                    border: "2px dashed var(--border-hover)",
-                    borderRadius: "var(--radius-lg)",
-                    padding: "var(--space-2xl)",
-                    textAlign: "center",
-                    background: "var(--bg-input)",
-                    cursor: "pointer",
-                    position: "relative",
-                  }}>
-                    <input type="file" accept="image/*" onChange={handleFileChange} style={{
-                      position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer"
-                    }} />
+
+                {/* File upload */}
+                <div className="form-control">
+                  <label className="label"><span className="label-text text-sm">Upload Proof Screenshot</span></label>
+                  <div className="border-2 border-dashed border-base-content/10 rounded-xl p-8 text-center cursor-pointer relative hover:border-primary/30 transition-colors">
+                    <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                     {loading ? (
-                      <p style={{ color: "var(--text-muted)" }}>Scanning EXIF & Hash signature...</p>
+                      <div className="flex items-center justify-center gap-2 text-base-content/40">
+                        <span className="loading loading-spinner loading-sm" />
+                        Scanning EXIF & hash…
+                      </div>
                     ) : screenshot ? (
                       <div>
-                        <p style={{ fontWeight: 600, color: "var(--brand-success)" }}>📸 {screenshot.name} Loaded</p>
-                        <p style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)", marginTop: 4 }}>Click or drag to replace</p>
+                        <p className="font-semibold text-success">📸 {screenshot.name}</p>
+                        <p className="text-xs text-base-content/30 mt-1">Click or drag to replace</p>
                       </div>
                     ) : (
                       <div>
-                        <p style={{ fontSize: "var(--text-lg)", fontWeight: 600 }}>Drag screenshot here or click to browse</p>
-                        <p style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)", marginTop: 4 }}>JPEG / PNG accepted. Metadata is checked to prevent sharing.</p>
+                        <p className="font-semibold">Drag screenshot here or click to browse</p>
+                        <p className="text-xs text-base-content/30 mt-1">JPEG / PNG accepted. Metadata checked.</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Exceeded Metadata Display (The wow factor!) */}
+                {/* Metadata display */}
                 {metaInfo && (
-                  <div className="glass-card" style={{ padding: "var(--space-md)", background: "rgba(108, 92, 231, 0.08)", border: "1px solid rgba(108, 92, 231, 0.2)", display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+                  <div className="rounded-lg bg-primary/5 border border-primary/10 p-4 space-y-3">
                     <div>
-                      <p style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "var(--space-xs)", fontWeight: 700 }}>
-                        📸 Screenshot EXIF Metadata
-                      </p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-xs)", fontSize: "var(--text-xs)" }}>
-                        <div><span style={{ color: "var(--text-muted)" }}>SHA-256 Hash:</span> <code style={{ color: "var(--text-accent)" }}>{metaInfo.hash}</code></div>
-                        <div><span style={{ color: "var(--text-muted)" }}>EXIF Camera:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.model}</strong></div>
-                        <div><span style={{ color: "var(--text-muted)" }}>Dimensions:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.width} x {metaInfo.height} px</strong></div>
-                        <div><span style={{ color: "var(--text-muted)" }}>Time Taken:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.takenAt}</strong></div>
+                      <p className="text-[10px] uppercase tracking-wider text-base-content/30 font-bold mb-1.5">📸 EXIF Metadata</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <div><span className="text-base-content/30">SHA-256:</span> <code className="text-primary ml-1">{metaInfo.hash}</code></div>
+                        <div><span className="text-base-content/30">Camera:</span> <strong className="ml-1">{metaInfo.model}</strong></div>
+                        <div><span className="text-base-content/30">Size:</span> <strong className="ml-1">{metaInfo.width} × {metaInfo.height}px</strong></div>
+                        <div><span className="text-base-content/30">Taken:</span> <strong className="ml-1">{metaInfo.takenAt}</strong></div>
                       </div>
                     </div>
-
-                    <div style={{ borderTop: "1px dashed rgba(255,255,255,0.1)", paddingTop: "var(--space-sm)" }}>
-                      <p style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "var(--space-xs)", fontWeight: 700 }}>
-                        💻 Tester Upload Device Telemetry
-                      </p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-xs)", fontSize: "var(--text-xs)" }}>
-                        <div><span style={{ color: "var(--text-muted)" }}>System OS:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.browserOS}</strong></div>
-                        <div><span style={{ color: "var(--text-muted)" }}>Browser:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.browserName}</strong></div>
-                        <div><span style={{ color: "var(--text-muted)" }}>GPU Model:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.browserGPU}</strong></div>
-                        <div><span style={{ color: "var(--text-muted)" }}>System Hardware:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.browserCores} cores, {metaInfo.browserMemory}</strong></div>
-                        <div style={{ gridColumn: "span 2" }}><span style={{ color: "var(--text-muted)" }}>Display Config:</span> <strong style={{ color: "var(--text-primary)" }}>{metaInfo.browserScreen}</strong></div>
+                    {metaInfo.browserOS && (
+                      <div className="border-t border-base-content/5 pt-3">
+                        <p className="text-[10px] uppercase tracking-wider text-base-content/30 font-bold mb-1.5">💻 Device Telemetry</p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                          <div><span className="text-base-content/30">OS:</span> <strong className="ml-1">{metaInfo.browserOS}</strong></div>
+                          <div><span className="text-base-content/30">Browser:</span> <strong className="ml-1">{metaInfo.browserName}</strong></div>
+                          <div><span className="text-base-content/30">GPU:</span> <strong className="ml-1">{metaInfo.browserGPU}</strong></div>
+                          <div><span className="text-base-content/30">Hardware:</span> <strong className="ml-1">{metaInfo.browserCores} cores, {metaInfo.browserMemory}</strong></div>
+                          <div className="col-span-2"><span className="text-base-content/30">Display:</span> <strong className="ml-1">{metaInfo.browserScreen}</strong></div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
-                {/* Bug details */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor="bugs">Bugs / Issues Found</label>
-                  <textarea id="bugs" className="form-input form-textarea" placeholder="E.g., App crashed when clicking payment button (optional)" value={bugs} onChange={(e) => setBugs(e.target.value)} />
+                {/* Text inputs */}
+                <div className="form-control">
+                  <label className="label"><span className="label-text text-sm">Bugs / Issues Found</span></label>
+                  <textarea className="textarea textarea-bordered h-20" placeholder="E.g., App crashed on payment screen (optional)" value={bugs} onChange={(e) => setBugs(e.target.value)} />
+                </div>
+                <div className="form-control">
+                  <label className="label"><span className="label-text text-sm">Suggestions</span></label>
+                  <textarea className="textarea textarea-bordered h-20" placeholder="E.g., Navigation could be simpler (optional)" value={suggestions} onChange={(e) => setSuggestions(e.target.value)} />
                 </div>
 
-                {/* Usability feedback */}
-                <div className="form-group">
-                  <label className="form-label" htmlFor="suggestions">Suggestions for Improvement</label>
-                  <textarea id="suggestions" className="form-input form-textarea" placeholder="E.g., Navigation is slightly confusing (optional)" value={suggestions} onChange={(e) => setSuggestions(e.target.value)} />
-                </div>
-
-                <button type="submit" className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading || !screenshot}>
-                  {loading ? "Processing..." : "✓ Submit Feedback & Proof"}
+                <button type="submit" className={`btn btn-primary btn-block ${loading ? "btn-disabled" : ""}`} disabled={loading || !screenshot}>
+                  {loading && <span className="loading loading-spinner loading-sm" />}
+                  {loading ? "Processing…" : "✓ Submit Feedback & Proof"}
                 </button>
               </form>
             )}
           </div>
-        </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={() => setModalOpen(false)}>close</button>
+          </form>
+        </dialog>
       )}
     </div>
   );

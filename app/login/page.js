@@ -4,6 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+const roleHome = {
+  admin: "/dashboard/admin",
+  developer: "/dashboard",
+  tester: "/dashboard/browse",
+};
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,10 +20,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -28,7 +34,20 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.href = "/dashboard";
+      const user = data?.user;
+      let role = user?.user_metadata?.role || "developer";
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        role = profile?.role || role;
+      }
+
+      window.location.href = roleHome[role] || "/dashboard";
     } catch (err) {
       setError(err.message || "An unexpected error occurred");
       setLoading(false);
@@ -36,85 +55,69 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={pageStyle}>
-      {/* Background effects */}
-      <div style={bgOrb("#6C5CE7", "10%", "20%")} />
-      <div style={bgOrb("#00CEC9", "80%", "70%")} />
+    <div className="min-h-screen flex items-center justify-center bg-base-300 bg-grid p-6 relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 pointer-events-none" />
 
-      <div style={cardStyle} className="animate-slide-up">
-        <Link href="/" className="nav-logo" style={{ display: "block", textAlign: "center", marginBottom: "var(--space-2xl)", fontSize: "var(--text-2xl)" }}>
-          SaLiTeSt Launch
-        </Link>
-
-        <h1 style={{ fontSize: "var(--text-2xl)", fontWeight: 800, textAlign: "center", marginBottom: 4 }}>Welcome Back</h1>
-        <p style={{ color: "var(--text-muted)", textAlign: "center", fontSize: "var(--text-sm)", marginBottom: "var(--space-2xl)" }}>
-          Sign in to manage your testing campaigns
-        </p>
-
-        {error && (
-          <div style={{ background: "rgba(255,118,117,0.1)", border: "1px solid rgba(255,118,117,0.3)", borderRadius: "var(--radius-md)", padding: "var(--space-md)", marginBottom: "var(--space-lg)", color: "#FF7675", fontSize: "var(--text-sm)" }}>
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email Address</label>
-            <input id="email" type="email" className="form-input" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <div className="card w-full max-w-md bg-base-200 border border-base-content/5 shadow-xl animate-slide-up relative z-10">
+        <div className="card-body gap-6">
+          <div className="text-center">
+            <Link href="/" className="text-2xl font-extrabold text-gradient inline-block mb-4">
+              SaLiTeSt Launch
+            </Link>
+            <h1 className="text-2xl font-extrabold">Welcome Back</h1>
+            <p className="text-sm text-base-content/40 mt-1">Sign in to manage your testing campaigns</p>
           </div>
 
-          <div className="form-group">
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <label className="form-label" htmlFor="password">Password</label>
-              <a href="#" style={{ fontSize: "var(--text-xs)", color: "var(--text-accent)" }}>Forgot password?</a>
+          {error && (
+            <div className="alert alert-error alert-sm text-sm">
+              <span>{error}</span>
             </div>
-            <input id="password" type="password" className="form-input" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
+          )}
 
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading} style={{ width: "100%" }}>
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div className="form-control">
+              <label className="label" htmlFor="email">
+                <span className="label-text text-sm">Email Address</span>
+              </label>
+              <input
+                id="email"
+                type="email"
+                className="input input-bordered w-full"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
 
-        <div style={{ textAlign: "center", marginTop: "var(--space-xl)", fontSize: "var(--text-sm)", color: "var(--text-muted)" }}>
-          Don&apos;t have an account?{" "}
-          <Link href="/register" style={{ color: "var(--text-accent)", fontWeight: 600 }}>Sign Up</Link>
+            <div className="form-control">
+              <label className="label" htmlFor="password">
+                <span className="label-text text-sm">Password</span>
+                <a href="#" className="label-text-alt link link-primary text-xs">Forgot password?</a>
+              </label>
+              <input
+                id="password"
+                type="password"
+                className="input input-bordered w-full"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            <button type="submit" className={`btn btn-primary w-full mt-2 ${loading ? "btn-disabled" : ""}`} disabled={loading}>
+              {loading && <span className="loading loading-spinner loading-sm" />}
+              {loading ? "Signing in…" : "Sign In"}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-base-content/40">
+            Don&apos;t have an account?{" "}
+            <Link href="/register" className="link link-primary font-semibold">Sign Up</Link>
+          </p>
         </div>
       </div>
     </div>
   );
 }
-
-const pageStyle = {
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "var(--gradient-hero)",
-  position: "relative",
-  overflow: "hidden",
-  padding: "var(--space-xl)",
-};
-
-const cardStyle = {
-  background: "rgba(17, 17, 40, 0.8)",
-  border: "1px solid var(--border-default)",
-  borderRadius: "var(--radius-xl)",
-  backdropFilter: "blur(20px)",
-  padding: "var(--space-2xl)",
-  width: "100%",
-  maxWidth: 440,
-  position: "relative",
-  zIndex: 2,
-};
-
-const bgOrb = (color, left, top) => ({
-  position: "absolute",
-  width: 400,
-  height: 400,
-  borderRadius: "50%",
-  background: `radial-gradient(circle, ${color}20 0%, transparent 70%)`,
-  left, top,
-  filter: "blur(80px)",
-  pointerEvents: "none",
-});
