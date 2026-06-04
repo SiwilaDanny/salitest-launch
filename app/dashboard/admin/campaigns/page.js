@@ -22,6 +22,21 @@ export default function AdminCampaignsPage() {
   const [updatingId, setUpdatingId] = useState(null);
   const [alertMsg, setAlertMsg] = useState(null);
 
+  // 2FA state variables
+  const [has2fa, setHas2fa] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [setupSecret, setSetupSecret] = useState("");
+  const [setupQrUrl, setSetupQrUrl] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const [setupError, setSetupError] = useState("");
+  const [setupLoading, setSetupLoading] = useState(false);
+
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingCampaignId, setPendingCampaignId] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+
   const supabase = createClient();
 
   const fetchCampaigns = useCallback(async () => {
@@ -41,6 +56,17 @@ export default function AdminCampaignsPage() {
       const { data, error: fetchErr } = await query;
       if (fetchErr) throw fetchErr;
       setCampaigns(data || []);
+
+      // Check if admin has set up 2FA
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("totp_secret")
+          .eq("id", user.id)
+          .single();
+        setHas2fa(!!profile?.totp_secret);
+      }
     } catch (err) {
       console.error("Error fetching campaigns:", err);
       setError("Failed to load campaigns. Verify admin RLS permissions.");
@@ -53,26 +79,85 @@ export default function AdminCampaignsPage() {
     fetchCampaigns();
   }, [fetchCampaigns]);
 
-  async function handleStatusChange(campaignId, newStatus) {
+  async function handleStartSetup() {
+    setSetupLoading(true);
+    setSetupError("");
     try {
-      setUpdatingId(campaignId);
-      const { error: updateErr } = await supabase
-        .from("campaigns")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", campaignId);
-
-      if (updateErr) throw updateErr;
-      setCampaigns(prev =>
-        prev.map(c => (c.id === campaignId ? { ...c, status: newStatus } : c))
-      );
-      setAlertMsg({ type: "success", text: `Campaign status updated to "${newStatus}".` });
+      const res = await fetch("/api/admin/2fa/setup");
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSetupSecret(data.secret);
+      setSetupQrUrl(data.qrCodeUrl);
+      setShowSetupModal(true);
     } catch (err) {
-      console.error("Error updating campaign:", err);
-      setAlertMsg({ type: "error", text: err.message || "Failed to update campaign status." });
+      setAlertMsg({ type: "error", text: err.message || "Failed to start 2FA setup" });
+    } finally {
+      setSetupLoading(false);
+    }
+  }
+
+  async function handleConfirmSetup() {
+    setSetupLoading(true);
+    setSetupError("");
+    try {
+      const res = await fetch("/api/admin/2fa/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: setupSecret, token: setupToken })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setHas2fa(true);
+      setShowSetupModal(false);
+      setSetupToken("");
+      setAlertMsg({ type: "success", text: "Google Authenticator 2FA configured successfully!" });
+    } catch (err) {
+      setSetupError(err.message || "Failed to verify 2FA code.");
+    } finally {
+      setSetupLoading(false);
+    }
+  }
+
+  function triggerStatusChange(campaignId, targetStatus) {
+    if (!has2fa) {
+      setAlertMsg({ type: "error", text: "Google Authenticator 2FA setup is required to update campaign status." });
+      return;
+    }
+    setPendingCampaignId(campaignId);
+    setPendingStatus(targetStatus);
+    setVerificationToken("");
+    setVerificationError("");
+    setShowConfirmModal(true);
+  }
+
+  async function handleStatusChangeConfirm() {
+    setUpdatingId(pendingCampaignId);
+    setVerificationError("");
+    try {
+      const res = await fetch("/api/admin/campaigns/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignId: pendingCampaignId,
+          status: pendingStatus,
+          token: verificationToken
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setCampaigns(prev =>
+        prev.map(c => (c.id === pendingCampaignId ? { ...c, status: pendingStatus } : c))
+      );
+      setAlertMsg({ type: "success", text: `Campaign status updated to "${pendingStatus}".` });
+      setShowConfirmModal(false);
+    } catch (err) {
+      setVerificationError(err.message || "Failed to update campaign status.");
     } finally {
       setUpdatingId(null);
     }
   }
+
 
   if (loading) {
     return (
@@ -111,6 +196,26 @@ export default function AdminCampaignsPage() {
       {error && (
         <div className="alert alert-error shadow-sm">
           <span>{error}</span>
+        </div>
+      )}
+
+      {!has2fa && !loading && (
+        <div className="alert bg-warning/15 border-warning/30 text-warning-content shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-1">
+            <h3 className="font-bold text-sm flex items-center gap-1.5">
+              🔒 Google Authenticator Required
+            </h3>
+            <p className="text-xs opacity-80">
+              For security, you must link your Google Authenticator app before you can approve or manage campaign statuses.
+            </p>
+          </div>
+          <button 
+            className="btn btn-warning btn-sm font-bold shadow-sm"
+            onClick={handleStartSetup}
+            disabled={setupLoading}
+          >
+            {setupLoading ? 'Loading...' : 'Configure 2FA'}
+          </button>
         </div>
       )}
 
@@ -215,14 +320,14 @@ export default function AdminCampaignsPage() {
                     <button
                       className="btn btn-success btn-sm text-xs font-bold"
                       disabled={updatingId === campaign.id}
-                      onClick={() => handleStatusChange(campaign.id, "recruiting")}
+                      onClick={() => triggerStatusChange(campaign.id, "recruiting")}
                     >
                       Approve → Recruiting
                     </button>
                     <button
                       className="btn btn-error btn-sm text-xs font-bold"
                       disabled={updatingId === campaign.id}
-                      onClick={() => handleStatusChange(campaign.id, "cancelled")}
+                      onClick={() => triggerStatusChange(campaign.id, "cancelled")}
                     >
                       Reject
                     </button>
@@ -232,7 +337,7 @@ export default function AdminCampaignsPage() {
                   <button
                     className="btn btn-success btn-sm text-xs font-bold"
                     disabled={updatingId === campaign.id}
-                    onClick={() => handleStatusChange(campaign.id, "recruiting")}
+                    onClick={() => triggerStatusChange(campaign.id, "recruiting")}
                   >
                     Approve → Recruiting
                   </button>
@@ -241,7 +346,7 @@ export default function AdminCampaignsPage() {
                   <button
                     className="btn btn-warning btn-sm text-xs font-bold"
                     disabled={updatingId === campaign.id}
-                    onClick={() => handleStatusChange(campaign.id, "cancelled")}
+                    onClick={() => triggerStatusChange(campaign.id, "cancelled")}
                   >
                     Suspend Campaign
                   </button>
@@ -250,7 +355,7 @@ export default function AdminCampaignsPage() {
                   <button
                     className="btn btn-primary btn-sm text-xs font-bold"
                     disabled={updatingId === campaign.id}
-                    onClick={() => handleStatusChange(campaign.id, "pending")}
+                    onClick={() => triggerStatusChange(campaign.id, "pending")}
                   >
                     Re-open as Pending
                   </button>
@@ -264,6 +369,119 @@ export default function AdminCampaignsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Setup 2FA Modal */}
+      {showSetupModal && (
+        <div className="modal modal-open">
+          <div className="modal-box bg-base-200 border border-base-content/10 shadow-xl max-w-md">
+            <h3 className="font-extrabold text-lg flex items-center gap-2">
+              🔑 Link Google Authenticator
+            </h3>
+            <p className="text-xs text-base-content/50 mt-1">
+              Scan the QR code below or enter the secret key manually into your Google Authenticator/2FA app.
+            </p>
+
+            <div className="flex flex-col items-center justify-center my-6 gap-4">
+              {setupQrUrl && (
+                <div className="p-3 bg-white rounded-lg shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={setupQrUrl} alt="2FA QR Code" className="w-44 h-44" />
+                </div>
+              )}
+              <div className="w-full text-center space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-base-content/40">Manual Entry Secret Key</p>
+                <code className="text-xs bg-base-300 px-3 py-1.5 rounded-lg select-all font-mono font-bold text-primary block w-fit mx-auto">
+                  {setupSecret}
+                </code>
+              </div>
+            </div>
+
+            <div className="form-control w-full space-y-2">
+              <label className="label py-0">
+                <span className="label-text text-xs font-bold uppercase tracking-wider text-base-content/50">Verification Code</span>
+              </label>
+              <input
+                type="text"
+                maxLength="6"
+                placeholder="e.g. 123456"
+                className="input input-bordered w-full font-mono text-center tracking-widest text-lg font-bold bg-base-300"
+                value={setupToken}
+                onChange={(e) => setSetupToken(e.target.value.replace(/\D/g, ''))}
+              />
+              {setupError && (
+                <p className="text-xs text-error font-bold">{setupError}</p>
+              )}
+            </div>
+
+            <div className="modal-action">
+              <button 
+                className="btn btn-ghost font-bold text-xs" 
+                onClick={() => setShowSetupModal(false)}
+                disabled={setupLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary font-bold text-xs shadow-md"
+                onClick={handleConfirmSetup}
+                disabled={setupLoading || setupToken.length !== 6}
+              >
+                {setupLoading ? 'Verifying...' : 'Verify & Enable'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Action 2FA Modal */}
+      {showConfirmModal && (
+        <div className="modal modal-open">
+          <div className="modal-box bg-base-200 border border-base-content/10 shadow-xl max-w-sm">
+            <h3 className="font-extrabold text-lg flex items-center gap-2">
+              🔒 Admin 2FA Verification
+            </h3>
+            <p className="text-xs text-base-content/60 mt-1">
+              Enter the 6-digit verification code from your Google Authenticator app to authorize this action.
+            </p>
+
+            <div className="form-control w-full space-y-2 mt-5">
+              <label className="label py-0">
+                <span className="label-text text-xs font-bold uppercase tracking-wider text-base-content/50">Authenticator Code</span>
+              </label>
+              <input
+                type="text"
+                maxLength="6"
+                placeholder="000000"
+                className="input input-bordered w-full font-mono text-center tracking-widest text-lg font-bold bg-base-300"
+                value={verificationToken}
+                onChange={(e) => setVerificationToken(e.target.value.replace(/\D/g, ''))}
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && verificationToken.length === 6 && handleStatusChangeConfirm()}
+              />
+              {verificationError && (
+                <p className="text-xs text-error font-bold">{verificationError}</p>
+              )}
+            </div>
+
+            <div className="modal-action">
+              <button 
+                className="btn btn-ghost font-bold text-xs" 
+                onClick={() => setShowConfirmModal(false)}
+                disabled={updatingId !== null}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary font-bold text-xs shadow-md"
+                onClick={handleStatusChangeConfirm}
+                disabled={updatingId !== null || verificationToken.length !== 6}
+              >
+                {updatingId !== null ? 'Verifying...' : 'Confirm Action'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
