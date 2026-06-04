@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const roleStyle = {
@@ -209,7 +209,7 @@ export default function AdminUsersPage() {
               </tr>
             ) : (
               users.map((user) => (
-                <>
+                <Fragment key={user.id}>
                   <tr key={user.id} className="hover transition-all">
                     <td className="font-bold text-base-content/80">
                       {user.full_name || <span className="italic text-base-content/30">No Name</span>}
@@ -414,7 +414,7 @@ export default function AdminUsersPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))
             )}
           </tbody>
