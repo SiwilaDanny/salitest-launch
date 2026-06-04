@@ -50,7 +50,7 @@ export async function POST(req) {
     }
 
     // ─── APPROVE TRANSACTION ───
-    const result = await approveWalletTransaction(transaction_id, approval_reason);
+    const result = await approveWalletTransaction(transaction_id, approval_reason, supabase);
 
     if (!result.success) {
       logger.warn('[admin-approve-deposit] Approval failed', {

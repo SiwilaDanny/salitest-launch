@@ -57,7 +57,7 @@ export async function POST(req) {
     }
 
     // ─── REJECT TRANSACTION ───
-    const result = await rejectWalletTransaction(transaction_id, rejection_reason);
+    const result = await rejectWalletTransaction(transaction_id, rejection_reason, supabase);
 
     if (!result.success) {
       logger.warn('[admin-reject-deposit] Rejection failed', {
