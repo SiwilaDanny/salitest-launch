@@ -238,13 +238,13 @@ export default function ApiAccessPage() {
               <p className="text-sm font-semibold mb-2">List Campaigns</p>
               <div className="mockup-code text-xs">
                 <pre data-prefix="$"><code>{`curl -H "Authorization: Bearer sali_YOUR_KEY" \\`}</code></pre>
-                <pre data-prefix=">"><code>     http://localhost:3000/api/v1/campaigns</code></pre>
+                <pre data-prefix=">"><code>     https://salitestlaunch.ravdan.org/api/v1/campaigns</code></pre>
               </div>
             </div>
             <div>
               <p className="text-sm font-semibold mb-2">Create New Campaign</p>
               <div className="mockup-code text-xs">
-                <pre data-prefix="$"><code>curl -X POST http://localhost:3000/api/v1/campaigns \</code></pre>
+                <pre data-prefix="$"><code>curl -X POST https://salitestlaunch.ravdan.org/api/v1/campaigns \</code></pre>
                 <pre data-prefix=">"><code>{`     -H "Authorization: Bearer sali_YOUR_KEY" \\`}</code></pre>
                 <pre data-prefix=">"><code>{`     -H "Content-Type: application/json" \\`}</code></pre>
                 <pre data-prefix=">"><code>{`     -d '{"app_id": "YOUR_APP_UUID", "title": "Automated Beta Build v1.2", "testers_required": 20}'`}</code></pre>
