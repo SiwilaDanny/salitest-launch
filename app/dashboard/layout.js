@@ -288,17 +288,55 @@ export default function DashboardLayout({ children }) {
                 </div>
               </div>
             </div>
-            <div className="avatar" title={displayName}>
-              <div className="w-10 rounded-full border border-base-content/10 bg-base-200 ring-2 ring-primary/25 ring-offset-2 ring-offset-base-300">
-                {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt={`${displayName} profile`} className="object-cover" />
-                ) : (
-                  <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/80 to-secondary/70 text-primary-content">
-                    <span className="text-sm font-black">{initial}</span>
-                  </div>
-                )}
+            <div className="dropdown dropdown-end">
+              <div tabIndex={0} role="button" className="avatar btn btn-ghost btn-circle" title={displayName}>
+                <div className="w-10 rounded-full border border-base-content/10 bg-base-200 ring-2 ring-primary/25 ring-offset-2 ring-offset-base-300">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt={`${displayName} profile`} className="object-cover" />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/80 to-secondary/70 text-primary-content">
+                      <span className="text-sm font-black">{initial}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+              <ul tabIndex={0} className="dropdown-content menu menu-sm bg-base-200 rounded-box z-50 mt-3 w-56 p-2 shadow-lg border border-base-content/10 space-y-1">
+                <li className="menu-title px-3 pt-2 pb-1">
+                  <div>
+                    <p className="font-bold text-sm text-base-content">{displayName}</p>
+                    <p className="text-[10px] text-base-content/40 font-normal truncate">{userProfile?.email || ''}</p>
+                  </div>
+                </li>
+                <div className="divider my-0 h-px" />
+                <li>
+                  <a onClick={() => window.location.href = '/dashboard/wallet'} className="flex items-center gap-2 text-xs font-semibold">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                    My Wallet
+                  </a>
+                </li>
+                <li>
+                  <a onClick={() => window.location.href = '/dashboard/earnings'} className="flex items-center gap-2 text-xs font-semibold">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    Earnings
+                  </a>
+                </li>
+                <div className="divider my-0 h-px" />
+                <li>
+                  <a 
+                    onClick={async () => {
+                      const { createClient } = await import('@/lib/supabase/client');
+                      const supabase = createClient();
+                      await supabase.auth.signOut();
+                      window.location.href = '/login';
+                    }} 
+                    className="flex items-center gap-2 text-xs font-semibold text-error hover:bg-error/10"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    Sign Out
+                  </a>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
